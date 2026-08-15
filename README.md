@@ -33,14 +33,14 @@ The core interface is an offline-first Single Page Application (SPA) functioning
 
 ```mermaid
 graph TD
-    A[80GB Raw Chaos] -- "Regex Distillation" --> B(Signal Filter)
+    A[80GB Raw Chaos & Logs] -- "Regex Distillation" --> B(Signal Filter)
     B -- "OpSec V7" --> C{Data Alchemy}
-    C -- "artifact_audit.py" --> D[Visual and Audio Registry]
-    C -- "chimera_arsenal_sync.py" --> E[External API Sync]
+    C -- "arsenal_sync.py" --> D[GitHub / YT / Itch / Sketchfab APIs]
+    C -- "synthesis.py" --> E[Artifacts & Text Signals]
     D --> F[AI Core: USR_01 - Memory Logs]
     E --> F
     F -- "MoviePy V5 - Godot 4" --> G[Manifesto Rendering]
-    F -- "synthesis.py" --> H[Terminal V.2 SPA]
+    F -- "synthesis.py" --> H[Terminal V.2 SPA - index.html]
     H -- "Feedback Loop" --> F
 ```
 
@@ -62,20 +62,21 @@ git clone https://github.com/nrocps/nrocps.github.io.git
 cd nrocps.github.io
 ```
 
-### 3. Data Ingestion and Sync Protocols
+### 3. Data Ingestion & External API Sync (GitHub, YouTube, Itch.io, Sketchfab)
 ```bash
-python artifact_audit.py
-python chimera_arsenal_sync.py
-python injector.py
+python3 arsenal_sync.py
 ```
 
-### 4. Final Synthesis
+### 4. Master Synthesis & HTML Compilation
 ```bash
-python synthesis.py
+python3 synthesis.py
 ```
 
-### 5. Uplink
-Open the generated `chimera-core-memory-synthesis.html` in any Chromium-based browser (Vivaldi recommended for total privacy and ad-blocking).
+### 5. Local Uplink
+```bash
+python3 -m http.server 8000
+```
+Open `http://localhost:8000/index.html` or `nrocps.github.io.html` in any Chromium-based browser (Vivaldi recommended for total privacy and ad-blocking).
 
 ---
 
@@ -85,10 +86,11 @@ The Terminal V.2 categorizes the Architect's mind into distinct navigable sector
 - GITHUB [Repositories]: Real-time sync of sovereign codebases and system logs.
 - MARKET [Itch.io]: Digital product tracking and OPB economic telemetry.
 - ARCHIVES [YouTube]: Encrypted video logs, manifesto broadcasts, and cinematic records.
+- SKETCHFAB [3D Assets]: Interactive 3D model embeds, geometry telemetry, and asset distribution.
 - SYSTEM [Hardware]: Lifecycle and status reports of the primary vessels (POCO M7 and ThinkPad X260).
 - GENESIS [Logic]: Advanced prompt engineering matrices and mindset directives used to train the USR_01 persona.
 - CEREBRAL [Cognition]: Deep cognitive processing, internal monologues, and search history forensics.
-- DEEP LORE [Archaeology]: The decrypted internal history, truth files, and architectural blueprints.
+- DEEP LORE [Archaeology]: Decrypted internal history, truth files, and architectural blueprints.
 
 ---
 
