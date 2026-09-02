@@ -20,7 +20,7 @@ CHANNEL_ID = "UCTTZHqy0WF1SzX8Wy_1jB0w"
 RAW_LOGS_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'RAW_LOGS.txt')
 
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
-GH_HEADERS = {"Authorization": f"token {GITHUB_TOKEN}"} if GITHUB_TOKEN else {}
+GH_HEADERS = {"Authorization": f"token {GITHUB_TOKEN}"} if GITHUB_TOKEN else HEADERS
 
 def decimal_to_base36(num, width=2):
     chars = "0123456789abcdefghijklmnopqrstuvwxyz"
@@ -50,6 +50,7 @@ def clean_text(text):
 class SmartInjector:
     def __init__(self):
         self.lines = []
+        self.module_lines = defaultdict(list)
         self.known_artifacts = set()
         self.now = datetime.now()
         self.d_str = self.now.strftime("%Y%m%d")
@@ -58,39 +59,63 @@ class SmartInjector:
         self.idx = 1
         self.has_declaration = False
         self.header = "const RAW_LOGS = ["
+        self.prompt_comment = ""
+        self.updated_modules = set()
         self.load_and_clean()
 
     def load_and_clean(self):
         if not os.path.exists(RAW_LOGS_PATH): return
         with open(RAW_LOGS_PATH, 'r', encoding='utf-8') as f:
             content = f.read().strip()
+
+        if content.startswith('<!--'):
+            p_end = content.find('-->')
+            if p_end != -1:
+                self.prompt_comment = content[:p_end + 3].strip()
+                content = content[p_end + 3:].strip()
+
         if content.endswith('];'):
             content = content[:-2].strip()
+
         header_match = re.match(r'^(const\s+RAW_LOGS\s*=\s*\[)', content)
         if header_match:
             self.has_declaration = True
             self.header = header_match.group(1)
             content = content[len(self.header):].strip()
+
         raw_lines = content.splitlines()
         for line in raw_lines:
             line = line.strip()
             if not line: continue
             clean_line = line.rstrip(',')
+
+            if clean_line.startswith('<!--') or clean_line.startswith('const RAW_LOGS'):
+                continue
+
             if 'UI0' in clean_line or 'EI0' in clean_line:
                 try:
                     parts = clean_line.split('0', 1)[-1].split('&#124;')
                     if len(parts) > 0:
                         self.known_artifacts.add(parts[0].strip().strip('"').strip("'"))
                 except: pass
-            if any(marker in clean_line for marker in ['UG0', 'EG0', 'UK0', 'EK0', 'UY0', 'EY0']):
-                continue
-            if not line.endswith(','):
-                line += ','
-            self.lines.append(line)
+
+            found_mod = None
+            for mod_char in ['G', 'K', 'Y', 'F']:
+                if f'U{mod_char}0' in clean_line or f'E{mod_char}0' in clean_line:
+                    found_mod = mod_char
+                    break
+
+            if found_mod:
+                if not line.endswith(','): line += ','
+                self.module_lines[found_mod].append(line)
+            else:
+                if not line.endswith(','): line += ','
+                self.lines.append(line)
 
     def add(self, l_type, content):
+        self.updated_modules.add(l_type)
         idx_b36 = decimal_to_base36(self.idx, 2)
-        self.new_logs.append(f'"{self.t_str}{idx_b36}U{l_type}0{content}",')
+        self.new_logs.append((l_type, f'"{self.t_str}{idx_b36}U{l_type}0{content}",'))
         self.idx += 1
 
     def save(self):
@@ -98,15 +123,29 @@ class SmartInjector:
         today_exists = any(f'D:{self.d_str}' in l for l in self.lines)
         if not today_exists:
             self.lines.append(today_marker)
-        self.lines.extend(self.new_logs)
+
+        final_module_entries = []
+        for mod_char in ['G', 'K', 'Y', 'F']:
+            if mod_char in self.updated_modules:
+                mod_logs = [entry for m_type, entry in self.new_logs if m_type == mod_char]
+                final_module_entries.extend(mod_logs)
+            else:
+                final_module_entries.extend(self.module_lines[mod_char])
+
+        self.lines.extend(final_module_entries)
+
         last_idx = len(self.lines) - 1
         if last_idx >= 0:
             self.lines[last_idx] = self.lines[last_idx].rstrip(',')
         body = '\n'.join(self.lines)
-        if self.has_declaration:
-            final_output = f"{self.header}\n{body}\n];"
+
+        arr_str = f"{self.header}\n{body}\n];" if self.has_declaration else f"const RAW_LOGS = [\n{body}\n];"
+
+        if self.prompt_comment:
+            final_output = f"{self.prompt_comment}\n{arr_str}"
         else:
-            final_output = f"const RAW_LOGS = [\n{body}\n];"
+            final_output = arr_str
+
         with open(RAW_LOGS_PATH, 'w', encoding='utf-8') as f:
             f.write(final_output)
 
@@ -133,6 +172,7 @@ def get_itch_web_data(url):
     except: return {}
 
 def sync_market(injector):
+    if not ITCHIO_API_KEY: return
     api_headers = {"Authorization": ITCHIO_API_KEY}
     try:
         games = []
@@ -161,7 +201,13 @@ def sync_market(injector):
             web_data = get_itch_web_data(g['url'])
             f_r = requests.get(f"https://itch.io/api/1/key/game/{g_id}/uploads", headers=api_headers)
             f_data = f_r.json().get('uploads', []) if f_r.status_code == 200 else []
-            f_list = [f"{u['filename']} ({u['size']//1048576}mb) - {u.get('downloads_count', 0)} DLs" for u in f_data]
+            game_total_dls = g.get('downloads_count', 0)
+            f_list = []
+            for u in f_data:
+                file_dls = u.get('downloads_count', 0)
+                if file_dls == 0 and game_total_dls > 0:
+                    file_dls = game_total_dls
+                f_list.append(f"{u['filename']} ({u['size']//1048576}mb) - {file_dls} DLs")
             p_val = g.get('min_price', 0)
             try:
                 price_float = float(p_val) / 100.0
@@ -246,9 +292,11 @@ def sync_github(injector):
     try:
         user_data = requests.get(f"https://api.github.com/users/{GITHUB_USER}", headers=GH_HEADERS).json()
         repos = requests.get(f"https://api.github.com/users/{GITHUB_USER}/repos?per_page=100&sort=updated", headers=GH_HEADERS).json()
-        injector.add('G', f'PROFILE|{user_data.get("public_repos", 0)}|{sum(r.get("stargazers_count", 0) for r in repos)}|github.com/{GITHUB_USER}|STABLE_ACTIVE|PUBLIC_ENCRYPTED_READ')
+        if not repos or not isinstance(repos, list): return
+        injector.add('G', f'PROFILE|{user_data.get("public_repos", 0)}|{sum(r.get("stargazers_count", 0) for r in repos if isinstance(r, dict))}|github.com/{GITHUB_USER}|STABLE_ACTIVE|PUBLIC_ENCRYPTED_READ')
         extra_targets = ["synthesis.py", "artifact_audit.py", "chimera_arsenal_sync.py", "injector.py", "zip_tree_generator.py"]
         for r in repos:
+            if not isinstance(r, dict): continue
             name = r['name']
             tree_items = get_gh_tree(GITHUB_USER, name, r.get('default_branch', 'main'))
             tree_str = compress_tree(tree_items, injector.known_artifacts)
@@ -260,7 +308,7 @@ def sync_github(injector):
                     if content: other_files.append(f"{item['path']}:{clean_text(content).replace(';' + ';', ';#' + '59;')}")
             injector.add('G', f'REPO|{clean_text(name)}|{"COMPLETED" if r.get("archived") else "ACTIVE_RESEARCH"}|{r.get("stargazers_count", 0)}|{clean_text(tree_str)}|{r.get("license", {}).get("spdx_id", "MIT") if r.get("license") else "MIT"}|{clean_text(readme)}|{(";" + ";").join(other_files)}')
             time.sleep(0.1)
-    except: pass
+    except Exception as e: pass
 
 def get_transcript(video_id):
     try:
@@ -268,6 +316,7 @@ def get_transcript(video_id):
     except: return "NULL"
 
 def sync_youtube(injector):
+    if not YOUTUBE_API_KEY: return
     youtube = build('youtube', 'v3', developerKey=YOUTUBE_API_KEY)
     try:
         ch_res = youtube.channels().list(part='snippet,statistics,contentDetails', id=CHANNEL_ID).execute()
@@ -293,7 +342,7 @@ def sync_youtube(injector):
         injector.add('Y', f'CHANNEL|{clean_text(ch_data["snippet"]["title"])}|ESTB_2018|{len(final_entries)}_NODES|{ch_data["statistics"]["viewCount"]}_PULSES')
         for entry in sorted(final_entries, key=lambda x: x['timestamp'], reverse=True):
             injector.add('Y', f'ENTRY|{entry["log"]}')
-    except: pass
+    except Exception as e: pass
 
 if __name__ == "__main__":
     injector = SmartInjector()
