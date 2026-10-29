@@ -294,7 +294,7 @@ def sync_github(injector):
         repos = requests.get(f"https://api.github.com/users/{GITHUB_USER}/repos?per_page=100&sort=updated", headers=GH_HEADERS).json()
         if not repos or not isinstance(repos, list): return
         injector.add('G', f'PROFILE|{user_data.get("public_repos", 0)}|{sum(r.get("stargazers_count", 0) for r in repos if isinstance(r, dict))}|github.com/{GITHUB_USER}|STABLE_ACTIVE|PUBLIC_ENCRYPTED_READ')
-        extra_targets = ["synthesis.py", "artifact_audit.py", "chimera_arsenal_sync.py", "injector.py", "zip_tree_generator.py"]
+        extra_targets = ["synthesis.py", "arsenal_sync.py"]
         for r in repos:
             if not isinstance(r, dict): continue
             name = r['name']
