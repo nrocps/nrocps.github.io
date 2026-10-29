@@ -266,7 +266,7 @@ def compress_tree(tree_items, known_artifacts):
             else:
                 sz = human_size_short(sum(f.get('size', 0) for f in new_files))
                 res.append(f"{d}>{len(new_files)}New({sz})")
-        elif any(x in d for x in ['Audio', 'Fonts', 'addons', 'CRTVHS', 'examples', 'CAE', 'ChimeraEngine_V1_Genesis', 'ChimeraEngine_V2_Ultimate', 'ChimeraEngine_V3_Atomic_Cessation', 'ChimeraEngine_V4_Sovereign']):
+        elif any(x in d for x in ['Audio', 'Fonts', 'addons', 'CRTVHS', 'examples', 'CAE', 'ChimeraEngine', 'res', 'drawable', 'values', 'layout', 'xml', 'gradle', 'dictionaries', 'app/src']) or len(files) > 5:
             sz = human_size_short(sum(f.get('size', 0) for f in files))
             res.append(f"{d}:{len(files)}f({sz})")
         else:
