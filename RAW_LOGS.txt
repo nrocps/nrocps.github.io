@@ -64,8 +64,6 @@ const RAW_LOGS = [
 "22422eUI0obj_rei_up.png|1280x1280|PEND",
 "D:20260412",
 "174426UI0door.png|784x1600|PEND",
-"D:20260413",
-"144223UI0lishu.png|1024x1024|PEND",
 "D:20260414",
 "105521UI0flashlight.png|567x1600|PEND",
 "115522UI0eye_ball.png|800x800|PEND",
